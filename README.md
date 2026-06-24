@@ -36,3 +36,21 @@ We provide a `Makefile` with the following targets:
     * **Timing Logic:** 1-second pause at each intermediate node.
     * **Movement:** Segments edges into W steps, moving every 300ms.
     * **Controls:** Includes a Play/Stop button to control the animation.
+
+ * **Milestone 7**: Scheduling Algorithms
+In this milestone, the random order of entering a node was replaced with a scheduler.
+
+The program supports two scheduling algorithms:
+
+### FCFS
+First Come First Served.  
+The first traveler that requests to enter a node is the first one allowed to enter.
+
+### SJF
+Shortest Job First.  
+When multiple travelers wait for the same node, the scheduler chooses the traveler with the shortest remaining path cost.
+
+### Compilation
+
+```bash
+make milestone7
