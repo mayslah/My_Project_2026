@@ -1,15 +1,6 @@
 # My_Project_2026
 **Team:** Bingo Logic (yes we have a team name for morale purposes)
 
-## Partners Information
-* **Partner 1:** Hiba Kljawe
-  - ID Num: 326795010
-  - GitHub: [HiBA-Kl](https://github.com/HiBA-Kl)
-  - Emails: hibajone31@gmail.com / halakl@post.jce.ac.il
-* **Partner 2:** Joelle Zanbil
-  - ID Num: 215037862
-  - GitHub: [JoelleZa-Azraeli](https://github.com/JoelleZa-Azraeli)
-  - Emails: joellezanbil2911@gmail.com / joelleza@post.jce.ac.il
 * **Partner 3:** Maysa Lahaleh
   - ID Num: 214003873
   - GitHub: [mayslah](https://github.com/mayslah)
