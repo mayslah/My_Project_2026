@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <string.h>
 #include "graph_io.h"
 
 int read_graph_from_file(const char* filename, Graph* g, int* start_node, int* end_node) {
@@ -28,13 +27,7 @@ int read_graph_from_file(const char* filename, Graph* g, int* start_node, int* e
 
     fclose(file);
     return 1;
-}
-
-int read_graph_with_travelers(const char* filename, Graph* g, Traveler* travelers, int* num_travelers) {
-    FILE* file = fopen(filename, "r");
-    if (!file) return 0;
-
-    char line[256];
+}    char line[256];
     int num_nodes = 0, num_edges = 0;
 
     // Find first data line (skip # comments and blank lines)
