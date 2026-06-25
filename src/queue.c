@@ -20,7 +20,7 @@ if (index < 0 || index >= q->count) {
 return -1;
 }
 
-```
+
 int traveler_id = q->items[index];
 
 for (int i = index; i < q->count - 1; i++) {
@@ -29,6 +29,6 @@ for (int i = index; i < q->count - 1; i++) {
 
 q->count--;
 return traveler_id;
-```
+
 
 }
