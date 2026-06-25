@@ -9,7 +9,7 @@ if (strcmp(name, "fcfs") == 0) {
 return SCHD_FCFS;
 }
 
-```
+
 if (strcmp(name, "sjf") == 0) {
     return SCHD_SJF;
 }
@@ -17,7 +17,7 @@ if (strcmp(name, "sjf") == 0) {
 printf("Error: unknown scheduler '%s'\n", name);
 printf("Use: fcfs or sjf\n");
 exit(1);
-```
+
 
 }
 
@@ -26,16 +26,16 @@ if (scheduler == SCHD_FCFS) {
 return "FCFS";
 }
 
-```
+
 return "SJF";
-```
+
 
 }
 
 static int remaining_path_cost(Graph* g, SchedulerTravelerView* traveler) {
 int cost = 0;
 
-```
+
 for (int i = traveler->path_index; i < traveler->path_count - 1; i++) {
     int u = traveler->path[i];
     int v = traveler->path[i + 1];
@@ -46,7 +46,7 @@ for (int i = traveler->path_index; i < traveler->path_count - 1; i++) {
 }
 
 return cost;
-```
+
 
 }
 
@@ -60,7 +60,7 @@ if (queue_is_empty(queue)) {
 return -1;
 }
 
-```
+
 if (scheduler == SCHD_FCFS) {
     return queue_pop_at(queue, 0);
 }
@@ -79,6 +79,6 @@ for (int i = 1; i < queue->count; i++) {
 }
 
 return queue_pop_at(queue, best_index);
-```
+
 
 }
