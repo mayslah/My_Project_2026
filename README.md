@@ -1,5 +1,4 @@
 # My_Project_2026
-**Team:** Bingo Logic (yes we have a team name for morale purposes)
 
 * **Partner :** Maysa Lahaleh
   - ID Num: 214003873
