@@ -1,5 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
-
+#include <string.h>
 #include "raylib.h"
 #include <math.h>
 #include <stdio.h>
