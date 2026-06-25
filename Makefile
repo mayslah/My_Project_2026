@@ -1,7 +1,5 @@
 # ===============================================================
 # Project: Operating Systems Simulation - Traffic on Graph
-# Team: Bingo Logic
-# Developers: Hiba Kljawe & Joelle Zanbil
 # ===============================================================
 
 CC = gcc
