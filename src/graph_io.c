@@ -1,4 +1,7 @@
+
+#include <stdio.h>
 #include <string.h>
+#include "graph_io.h"
 
 int read_graph_with_travelers(const char* filename, Graph* g, Traveler* travelers, int* num_travelers) {
     FILE* file = fopen(filename, "r");
