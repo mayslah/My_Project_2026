@@ -27,7 +27,7 @@ int path[MAX_NODES];
 int path_count;
 int path_index;
 
-```
+
 int current_node;
 int next_node;
 
