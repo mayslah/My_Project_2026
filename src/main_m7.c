@@ -40,7 +40,7 @@ float wait_start;
 float total_wait;
 
 Vector2 pos;
-```
+
 
 } TravelerState;
 
@@ -58,7 +58,7 @@ printf("%s -schd sjf <file_name>\n", prog);
 static void draw_arrow(Vector2 start, Vector2 end) {
 DrawLineV(start, end, DARKGRAY);
 
-```
+
 float angle = atan2f(end.y - start.y, end.x - start.x);
 float size = 12.0f;
 
@@ -73,7 +73,7 @@ Vector2 p2 = {
 };
 
 DrawTriangle(end, p1, p2, DARKGRAY);
-```
+
 
 }
 
@@ -92,7 +92,7 @@ for (int j = 0; j < g->num_nodes; j++) {
 if (g->weights[i][j] != -1) {
 draw_arrow(node_pos[i], node_pos[j]);
 
-```
+
             DrawText(
                 TextFormat("%d", g->weights[i][j]),
                 (int)((node_pos[i].x + node_pos[j].x) / 2) + 5,
@@ -120,7 +120,7 @@ for (int i = 0; i < g->num_nodes; i++) {
         );
     }
 }
-```
+
 
 }
 
@@ -128,7 +128,7 @@ static void draw_travelers(TravelerState travelers[], int count, Vector2 node_po
 for (int i = 0; i < count; i++) {
 Vector2 p;
 
-```
+
     if (travelers[i].status == MOVING) {
         p = travelers[i].pos;
     } else {
@@ -146,7 +146,7 @@ Vector2 p;
     DrawCircleV(p, 13, c);
     DrawText(TextFormat("T%d", i + 1), p.x - 10, p.y - 30, 14, BLACK);
 }
-```
+
 
 }
 
@@ -159,12 +159,12 @@ for (int i = 0; i < count; i++) {
 view[i].path_count = travelers[i].path_count;
 view[i].path_index = travelers[i].path_index;
 
-```
+
     for (int j = 0; j < travelers[i].path_count; j++) {
         view[i].path[j] = travelers[i].path[j];
     }
 }
-```
+
 
 }
 
@@ -174,7 +174,7 @@ usage(argv[0]);
 return 1;
 }
 
-```
+
 SchedulerType scheduler = parse_scheduler_name(argv[2]);
 const char* filename = argv[3];
 
@@ -336,7 +336,7 @@ while (!WindowShouldClose()) {
 
 CloseWindow();
 return 0;
-```
+
 
 }
 
