@@ -7,7 +7,7 @@
   - Emails: mays.lahaleh@gmail.com / lahalehma@post.jce.ac.il
 
 ## Repository Link
-[(https://github.com/mayslah/My_Project_2026)](https://github.com/mayslah/My_Project_2026))
+[(https://github.com/mayslah/My_Project_2026)](https://github.com/mayslah/My_Project_2026)
 
 [Watch the Project Demo Video Here](https://drive.google.com/file/d/1_rQYJ4V9WTZmXlUg1uaYJPX91jU8dFfU/view?usp=drive_link)
 
