@@ -1,7 +1,4 @@
-
-#include <stdio.h>
 #include "dijkstra.h"
-
 int compute_path(Graph* g, int start, int end, int* path_out) {
     int dist[MAX_NODES], prev[MAX_NODES], visited[MAX_NODES];
 
@@ -34,6 +31,31 @@ int compute_path(Graph* g, int start, int end, int* path_out) {
         for (int v = 0; v < g->num_nodes; v++) {
             if (g->weights[u][v] != -1) {
                 int alt = dist[u] + g->weights[u][v];
+                if (alt < dist[v]) {
+                    dist[v] = alt;
+                    prev[v] = u;
+                }
+            }
+        }
+    }
+
+    if (dist[end] == INF) return 0;
+
+    int temp[MAX_NODES];
+    int count = 0;
+    int curr = end;
+
+    while (curr != -1) {
+        temp[count++] = curr;
+        curr = prev[curr];
+    }
+
+    for (int i = 0; i < count; i++) {
+        path_out[i] = temp[count - 1 - i];
+    }
+
+    return count;
+}
                 if (alt < dist[v]) {
                     dist[v] = alt;
                     prev[v] = u;
