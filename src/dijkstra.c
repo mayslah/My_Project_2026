@@ -1,3 +1,7 @@
+
+#include <stdio.h>
+#include "dijkstra.h"
+
 int compute_path(Graph* g, int start, int end, int* path_out) {
     int dist[MAX_NODES], prev[MAX_NODES], visited[MAX_NODES];
 
