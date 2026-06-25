@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "graph.h"نعم، هذا هو الملف النظيف. امسحي كل `main_m7.c` والصقي هذا فقط. حذفت الكود المكرر بعد أول `main`. 
+#include "graph.h" 
 
 #define _POSIX_C_SOURCE 200809L
 
