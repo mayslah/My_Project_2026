@@ -1,0 +1,684 @@
+#define _POSIX_C_SOURCE 200809L
+
+#include "raylib.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <semaphore.h>
+
+#include "graph.h"
+#include "graph_io.h"
+#include "dijkstra.h"
+#include "travelers.h"
+#include "queue.h"
+#include "scheduler.h"
+
+#define PAUSE_TIME 1
+#define STEP_TIME_US 300000
+#define SCREEN_W 900
+#define SCREEN_H 650
+
+typedef enum {
+MSG_REQUEST_NODE,
+MSG_ENTERED_NODE,
+MSG_LEFT_NODE,
+MSG_DONE
+} MessageType;
+
+typedef enum {
+DRAW_WAITING,
+DRAW_INSIDE_NODE,
+DRAW_MOVING_EDGE,
+DRAW_FINISHED
+} DrawState;
+
+typedef struct {
+MessageType type;
+int traveler_id;
+int node;
+int next_node;
+int path_index;
+} SimMessage;
+
+typedef struct {
+sem_t allow_enter[MAX_TRAVELERS];
+} SharedControl;
+
+typedef struct {
+int pipe_fd;
+int current_node;
+int next_node;
+int path_index;
+DrawState draw_state;
+
+
+float move_start;
+float move_duration;
+
+int finished;
+
+
+} ParentTravelerState;
+
+static Color traveler_colors[] = {
+RED, BLUE, GREEN, PURPLE, ORANGE,
+PINK, SKYBLUE, GOLD, MAROON, DARKGREEN
+};
+
+static void print_usage(const char* prog) {
+printf("Usage:\n");
+printf("%s -schd fcfs <file_name>\n", prog);
+printf("%s -schd sjf <file_name>\n", prog);
+}
+
+static void draw_arrow(Vector2 start, Vector2 end) {
+DrawLineEx(start, end, 2.0f, DARKGRAY);
+
+
+float angle = atan2f(end.y - start.y, end.x - start.x);
+float size = 13.0f;
+
+Vector2 p1 = {
+    end.x - size * cosf(angle - PI / 6),
+    end.y - size * sinf(angle - PI / 6)
+};
+
+Vector2 p2 = {
+    end.x - size * cosf(angle + PI / 6),
+    end.y - size * sinf(angle + PI / 6)
+};
+
+DrawTriangle(end, p1, p2, DARKGRAY);
+
+
+}
+
+static void create_node_positions(Vector2 pos[], int n) {
+for (int i = 0; i < n; i++) {
+pos[i] = (Vector2) {
+SCREEN_W / 2.0f + 230.0f * cosf(i * 2.0f * PI / n),
+SCREEN_H / 2.0f + 210.0f * sinf(i * 2.0f * PI / n)
+};
+}
+}
+
+static void draw_graph(Graph* g, Vector2 node_pos[], int occupied[], NodeQueue queues[]) {
+for (int i = 0; i < g->num_nodes; i++) {
+for (int j = 0; j < g->num_nodes; j++) {
+if (g->weights[i][j] != -1) {
+draw_arrow(node_pos[i], node_pos[j]);
+
+
+            DrawText(
+                TextFormat("%d", g->weights[i][j]),
+                (int)((node_pos[i].x + node_pos[j].x) / 2) + 5,
+                (int)((node_pos[i].y + node_pos[j].y) / 2) + 5,
+                15,
+                MAROON
+            );
+        }
+    }
+}
+
+for (int i = 0; i < g->num_nodes; i++) {
+    Color c = occupied[i] == -1 ? DARKBLUE : DARKGREEN;
+
+    DrawCircleV(node_pos[i], 24, c);
+
+    DrawText(
+        TextFormat("%d", i),
+        (int)node_pos[i].x - 6,
+        (int)node_pos[i].y - 8,
+        20,
+        WHITE
+    );
+
+    if (queues[i].count > 0) {
+        DrawText(
+            TextFormat("Q:%d", queues[i].count),
+            (int)node_pos[i].x - 18,
+            (int)node_pos[i].y + 30,
+            16,
+            ORANGE
+        );
+    }
+}
+
+
+}
+
+static Vector2 traveler_draw_position(
+ParentTravelerState* st,
+Vector2 node_pos[],
+int traveler_id
+) {
+Vector2 p;
+
+
+if (st->draw_state == DRAW_MOVING_EDGE && st->next_node != -1) {
+    float now = (float)GetTime();
+    float progress = (now - st->move_start) / st->move_duration;
+
+    if (progress < 0.0f) progress = 0.0f;
+    if (progress > 1.0f) progress = 1.0f;
+
+    Vector2 a = node_pos[st->current_node];
+    Vector2 b = node_pos[st->next_node];
+
+    p.x = a.x + (b.x - a.x) * progress;
+    p.y = a.y + (b.y - a.y) * progress;
+} else if (st->draw_state == DRAW_WAITING && st->next_node != -1) {
+    p = node_pos[st->next_node];
+    p.x += 42.0f + (traveler_id % 3) * 18.0f;
+    p.y += -28.0f + (traveler_id / 3) * 18.0f;
+    return p;
+} else {
+    p = node_pos[st->current_node];
+}
+
+p.x += (float)((traveler_id % 3) - 1) * 12.0f;
+p.y += (float)(traveler_id / 3) * 12.0f;
+
+return p;
+
+
+}
+
+static void draw_travelers(
+ParentTravelerState states[],
+int num_travelers,
+Vector2 node_pos[]
+) {
+for (int i = 0; i < num_travelers; i++) {
+Vector2 p = traveler_draw_position(&states[i], node_pos, i);
+
+
+    Color c = traveler_colors[i % 10];
+
+    if (states[i].draw_state == DRAW_WAITING) {
+        c = ORANGE;
+    } else if (states[i].draw_state == DRAW_FINISHED) {
+        c = GRAY;
+    }
+
+    DrawCircleV(p, 13, c);
+
+    DrawText(
+        TextFormat("T%d", i + 1),
+        (int)p.x - 10,
+        (int)p.y - 30,
+        14,
+        BLACK
+    );
+}
+
+
+}
+
+static void build_scheduler_view(
+SchedulerTravelerView view[],
+int paths[][MAX_NODES],
+int path_count[],
+ParentTravelerState states[],
+int num_travelers
+) {
+for (int i = 0; i < num_travelers; i++) {
+view[i].path_count = path_count[i];
+view[i].path_index = states[i].path_index;
+
+
+    for (int j = 0; j < path_count[i]; j++) {
+        view[i].path[j] = paths[i][j];
+    }
+}
+
+
+}
+
+static void give_permission_if_possible(
+int node,
+Graph* g,
+NodeQueue queues[],
+int occupied[],
+SharedControl* shared,
+SchedulerType scheduler,
+SchedulerTravelerView view[]
+) {
+if (occupied[node] != -1) {
+return;
+}
+
+
+if (queue_is_empty(&queues[node])) {
+    return;
+}
+
+int chosen = choose_traveler_from_queue(
+    &queues[node],
+    scheduler,
+    view,
+    g
+);
+
+if (chosen == -1) {
+    return;
+}
+
+occupied[node] = chosen;
+sem_post(&shared->allow_enter[chosen]);
+
+
+}
+
+static void child_process_run(
+int traveler_id,
+int write_fd,
+Graph* g,
+Traveler* traveler,
+SharedControl* shared
+) {
+int path[MAX_NODES];
+int path_count = compute_path(g, traveler->src, traveler->dst, path);
+
+
+if (path_count <= 0) {
+    SimMessage done;
+    done.type = MSG_DONE;
+    done.traveler_id = traveler_id;
+    done.node = traveler->src;
+    done.next_node = -1;
+    done.path_index = 0;
+
+    write(write_fd, &done, sizeof(done));
+    close(write_fd);
+    exit(0);
+}
+
+for (int step = 0; step < path_count; step++) {
+    int node = path[step];
+    int next = step < path_count - 1 ? path[step + 1] : -1;
+
+    SimMessage request;
+    request.type = MSG_REQUEST_NODE;
+    request.traveler_id = traveler_id;
+    request.node = node;
+    request.next_node = next;
+    request.path_index = step;
+
+    write(write_fd, &request, sizeof(request));
+
+    sem_wait(&shared->allow_enter[traveler_id]);
+
+    SimMessage entered;
+    entered.type = MSG_ENTERED_NODE;
+    entered.traveler_id = traveler_id;
+    entered.node = node;
+    entered.next_node = next;
+    entered.path_index = step;
+
+    write(write_fd, &entered, sizeof(entered));
+
+    sleep(PAUSE_TIME);
+
+    SimMessage left;
+    left.type = MSG_LEFT_NODE;
+    left.traveler_id = traveler_id;
+    left.node = node;
+    left.next_node = next;
+    left.path_index = step;
+
+    write(write_fd, &left, sizeof(left));
+
+    if (next != -1) {
+        int w = g->weights[node][next];
+
+        if (w <= 0) {
+            w = 1;
+        }
+
+        usleep(w * STEP_TIME_US);
+    }
+}
+
+SimMessage done;
+done.type = MSG_DONE;
+done.traveler_id = traveler_id;
+done.node = path[path_count - 1];
+done.next_node = -1;
+done.path_index = path_count - 1;
+
+write(write_fd, &done, sizeof(done));
+
+close(write_fd);
+exit(0);
+
+
+}
+
+static void handle_message(
+SimMessage* msg,
+Graph* g,
+NodeQueue queues[],
+int occupied[],
+SharedControl* shared,
+ParentTravelerState states[],
+SchedulerType scheduler,
+SchedulerTravelerView view[]
+) {
+int tid = msg->traveler_id;
+int node = msg->node;
+
+
+if (msg->type == MSG_REQUEST_NODE) {
+    states[tid].draw_state = DRAW_WAITING;
+    states[tid].next_node = node;
+    states[tid].path_index = msg->path_index;
+
+    queue_push(&queues[node], tid);
+
+    give_permission_if_possible(
+        node,
+        g,
+        queues,
+        occupied,
+        shared,
+        scheduler,
+        view
+    );
+}
+
+else if (msg->type == MSG_ENTERED_NODE) {
+    states[tid].current_node = node;
+    states[tid].next_node = msg->next_node;
+    states[tid].path_index = msg->path_index;
+    states[tid].draw_state = DRAW_INSIDE_NODE;
+
+    if (msg->next_node == -1) {
+        printf(
+            "[%s] T%d entered node %d | DESTINATION\n",
+            scheduler_to_string(scheduler),
+            tid + 1,
+            node
+        );
+    } else {
+        printf(
+            "[%s] T%d entered node %d | next node: %d\n",
+            scheduler_to_string(scheduler),
+            tid + 1,
+            node,
+            msg->next_node
+        );
+    }
+}
+
+else if (msg->type == MSG_LEFT_NODE) {
+    occupied[node] = -1;
+
+    if (msg->next_node != -1) {
+        int w = g->weights[node][msg->next_node];
+
+        if (w <= 0) {
+            w = 1;
+        }
+
+        states[tid].draw_state = DRAW_MOVING_EDGE;
+        states[tid].current_node = node;
+        states[tid].next_node = msg->next_node;
+        states[tid].move_start = (float)GetTime();
+        states[tid].move_duration = w * 0.3f;
+    }
+
+    give_permission_if_possible(
+        node,
+        g,
+        queues,
+        occupied,
+        shared,
+        scheduler,
+        view
+    );
+}
+
+else if (msg->type == MSG_DONE) {
+    states[tid].finished = 1;
+    states[tid].draw_state = DRAW_FINISHED;
+    states[tid].current_node = node;
+    states[tid].next_node = -1;
+
+    printf(
+        "[%s] T%d finished\n",
+        scheduler_to_string(scheduler),
+        tid + 1
+    );
+}
+
+
+}
+
+static int all_finished(ParentTravelerState states[], int n) {
+for (int i = 0; i < n; i++) {
+if (!states[i].finished) {
+return 0;
+}
+}
+
+
+return 1;
+
+
+}
+
+int main(int argc, char* argv[]) {
+if (argc != 4 || strcmp(argv[1], "-schd") != 0) {
+print_usage(argv[0]);
+return 1;
+}
+
+```
+SchedulerType scheduler = parse_scheduler_name(argv[2]);
+const char* filename = argv[3];
+
+Graph g;
+Traveler travelers[MAX_TRAVELERS];
+int num_travelers = 0;
+
+if (!read_graph_with_travelers(filename, &g, travelers, &num_travelers)) {
+    printf("Error: could not read input file.\n");
+    return 1;
+}
+
+SharedControl* shared = mmap(
+    NULL,
+    sizeof(SharedControl),
+    PROT_READ | PROT_WRITE,
+    MAP_SHARED | MAP_ANONYMOUS,
+    -1,
+    0
+);
+
+if (shared == MAP_FAILED) {
+    perror("mmap");
+    return 1;
+}
+
+for (int i = 0; i < num_travelers; i++) {
+    sem_init(&shared->allow_enter[i], 1, 0);
+}
+
+int paths[MAX_TRAVELERS][MAX_NODES];
+int path_count[MAX_TRAVELERS];
+
+for (int i = 0; i < num_travelers; i++) {
+    path_count[i] = compute_path(
+        &g,
+        travelers[i].src,
+        travelers[i].dst,
+        paths[i]
+    );
+}
+
+int pipes[MAX_TRAVELERS][2];
+pid_t pids[MAX_TRAVELERS];
+
+for (int i = 0; i < num_travelers; i++) {
+    if (pipe(pipes[i]) == -1) {
+        perror("pipe");
+        return 1;
+    }
+}
+
+for (int i = 0; i < num_travelers; i++) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        for (int j = 0; j < num_travelers; j++) {
+            close(pipes[j][0]);
+
+            if (j != i) {
+                close(pipes[j][1]);
+            }
+        }
+
+        child_process_run(
+            i,
+            pipes[i][1],
+            &g,
+            &travelers[i],
+            shared
+        );
+    }
+
+    if (pid < 0) {
+        perror("fork");
+        return 1;
+    }
+
+    pids[i] = pid;
+    close(pipes[i][1]);
+
+    fcntl(pipes[i][0], F_SETFL, O_NONBLOCK);
+}
+
+ParentTravelerState states[MAX_TRAVELERS];
+NodeQueue queues[MAX_NODES];
+int occupied[MAX_NODES];
+
+for (int i = 0; i < g.num_nodes; i++) {
+    queue_init(&queues[i]);
+    occupied[i] = -1;
+}
+
+for (int i = 0; i < num_travelers; i++) {
+    states[i].pipe_fd = pipes[i][0];
+    states[i].current_node = travelers[i].src;
+    states[i].next_node = -1;
+    states[i].path_index = 0;
+    states[i].draw_state = DRAW_WAITING;
+    states[i].move_start = 0.0f;
+    states[i].move_duration = 0.0f;
+    states[i].finished = 0;
+}
+
+Vector2 node_pos[MAX_NODES];
+create_node_positions(node_pos, g.num_nodes);
+
+char title[128];
+snprintf(
+    title,
+    sizeof(title),
+    "Milestone 7 Scheduling - %s",
+    scheduler_to_string(scheduler)
+);
+
+InitWindow(SCREEN_W, SCREEN_H, title);
+SetTargetFPS(60);
+
+while (!WindowShouldClose()) {
+    SchedulerTravelerView view[MAX_TRAVELERS];
+
+    build_scheduler_view(
+        view,
+        paths,
+        path_count,
+        states,
+        num_travelers
+    );
+
+    for (int i = 0; i < num_travelers; i++) {
+        if (states[i].finished) {
+            continue;
+        }
+
+        SimMessage msg;
+
+        while (read(states[i].pipe_fd, &msg, sizeof(msg)) == (ssize_t)sizeof(msg)) {
+            handle_message(
+                &msg,
+                &g,
+                queues,
+                occupied,
+                shared,
+                states,
+                scheduler,
+                view
+            );
+        }
+    }
+
+    BeginDrawing();
+    ClearBackground(RAYWHITE);
+
+    DrawText(
+        TextFormat("Scheduler: %s", scheduler_to_string(scheduler)),
+        20,
+        20,
+        26,
+        DARKBLUE
+    );
+
+    DrawText(
+        "Orange = waiting | Green node = occupied",
+        20,
+        55,
+        18,
+        DARKGRAY
+    );
+
+    draw_graph(&g, node_pos, occupied, queues);
+    draw_travelers(states, num_travelers, node_pos);
+
+    if (all_finished(states, num_travelers)) {
+        DrawText(
+            "ALL TRAVELERS DONE!",
+            300,
+            60,
+            25,
+            DARKGREEN
+        );
+    }
+
+    EndDrawing();
+}
+
+CloseWindow();
+
+for (int i = 0; i < num_travelers; i++) {
+    waitpid(pids[i], NULL, 0);
+    close(pipes[i][0]);
+}
+
+for (int i = 0; i < num_travelers; i++) {
+    sem_destroy(&shared->allow_enter[i]);
+}
+
+munmap(shared, sizeof(SharedControl));
+
+return 0;
+
+
+}
