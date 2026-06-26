@@ -30,7 +30,7 @@ static Color TRAVELER_COLORS[] = {
 static void DrawArrow(Vector2 start, Vector2 end, Color color, float thick) {
 DrawLineEx(start, end, thick, color);
 
-```
+
 float angle = atan2f(end.y - start.y, end.x - start.x);
 float sz = 14.0f;
 
@@ -45,7 +45,7 @@ Vector2 p2 = {
 };
 
 DrawTriangle(end, p1, p2, color);
-```
+
 
 }
 
